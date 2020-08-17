@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Ketchup Search</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href='https://fonts.googleapis.com/css?family=Droid+Sans' rel='stylesheet' type='text/css'>
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/@bmlt-enabled/croutonjs/crouton.min.css" />
+</head>
+<body>
+<div id="bmlt-tabs"></div>
+</body>
+<script src="https://cdn.jsdelivr.net/npm/@bmlt-enabled/croutonjs/crouton.min.js"></script>
+<script type="text/javascript">
+    var crouton = new Crouton({
+        "root_server": "https://nnerna.charlestonna.org/bonchon/main_server/",
+        "map_search": { latitude: 35.542053, longitude: -78.0652501, width: -50, zoom: 8, auto: true },
+        "google_api_key": "AIzaSyA0pVLZgOWbW4WkOw-Q4oDQilTrs9fs1xU",
+        "show_distance": true,
+        "theme": "sezf",
+        "template_path": "https://cdn.jsdelivr.net/npm/@bmlt-enabled/croutonjs/templates",
+        "filter_tabs": true
+    });
+</script>
+</html>
