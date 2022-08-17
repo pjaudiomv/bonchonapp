@@ -34,7 +34,7 @@
             {'title': 'City', 'field': 'location_municipality'},
         ],
         "view_by": "city",
-        meeting_data_template: "{{#isTemporarilyClosed this}}<div class='temporarilyClosed'><span class='glyphicon glyphicon-flag'></span> {{temporarilyClosed this}}</div>{{/isTemporarilyClosed}}<div class='meeting-name'>{{this.meeting_name}}</div><div class='location-text'>{{this.location_text}}</div><div class='meeting-address'>{{this.formatted_address}}</div><div class='location-information'><strong>Location Info:</strong> {{webLinkify this.formatted_location_info}}</div>{{#if this.virtual_meeting_additional_info}}<div class='meeting-additional-info'>{{this.virtual_meeting_additional_info}}</div>{{/if}}",
+        meeting_data_template: "{{#isTemporarilyClosed this}}<div class='temporarilyClosed'><span class='glyphicon glyphicon-flag'></span> {{temporarilyClosed this}}</div>{{/isTemporarilyClosed}}<div class='meeting-name'>{{this.meeting_name}}</div><div class='location-text'>{{this.location_text}}</div><div class='meeting-address'>{{this.formatted_address}}</div><div class='location-information'><strong>Location Info:</strong> {{webLinkify this.formatted_location_info}}</div>{{#if this.comments}}<div class='meeting-additional-info'>{{this.comments}}</div>{{/if}}",
     });
 </script>
 </html>
