@@ -21,6 +21,10 @@ resource "oci_core_instance" "bonchon" {
     source_type = "image"
     source_id   = data.oci_core_images.ubuntu_jammy.images.0.id
   }
+
+  lifecycle {
+    ignore_changes = [source_details]
+  }
 }
 
 resource "oci_core_public_ip" "this" {
@@ -97,6 +101,22 @@ resource "oci_core_network_security_group_security_rule" "bonchon_ingress_ssh_ru
   protocol                  = "6"
   description               = "ssh-ingress"
   source                    = local.myip
+  source_type               = "CIDR_BLOCK"
+
+  tcp_options {
+    destination_port_range {
+      max = 22
+      min = 22
+    }
+  }
+}
+
+resource "oci_core_network_security_group_security_rule" "bonchon_ingress_ssh_rule_jb" {
+  network_security_group_id = oci_core_network_security_group.bonchon.id
+  direction                 = "INGRESS"
+  protocol                  = "6"
+  description               = "ssh-ingress"
+  source                    = "76.182.16.254/32" ## JB
   source_type               = "CIDR_BLOCK"
 
   tcp_options {
@@ -252,6 +272,6 @@ data "http" "ip" {
 }
 
 locals {
-  myip                = "${jsondecode(data.http.ip.body).ip_addr}/32"
+  myip                = "${jsondecode(data.http.ip.response_body).ip_addr}/32"
   availability_domain = [for i in data.oci_identity_availability_domains.this.availability_domains : i if length(regexall("US-ASHBURN-AD-3", i.name)) > 0][0].name
 }

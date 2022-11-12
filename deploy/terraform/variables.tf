@@ -25,3 +25,8 @@ variable "vpc_cidr_block" {
   description = "The vpc cidr block to use."
   default     = "10.1.0.0/16"
 }
+
+variable "ssh_public_keys" {
+  type        = map(string)
+  description = "The SSH keys used to access the server."
+}
