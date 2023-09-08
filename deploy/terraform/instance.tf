@@ -23,7 +23,7 @@ resource "oci_core_instance" "bonchon" {
   }
 
   lifecycle {
-    ignore_changes = [source_details]
+    ignore_changes = [metadata["user_data"], source_details["source_id"]]
   }
 }
 
