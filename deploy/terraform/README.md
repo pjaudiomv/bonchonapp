@@ -1,3 +1,3 @@
 # BonChon Locator Infra
 
-Deploys lamp stack to OCI
+Deploys lamp stack to AWS

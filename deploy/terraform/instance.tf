@@ -1,205 +1,106 @@
-resource "oci_core_instance" "bonchon" {
-  availability_domain = oci_core_subnet.free.availability_domain
-  compartment_id      = data.oci_identity_compartment.default.id
-  display_name        = "bonchon-${terraform.workspace}"
-  shape               = "VM.Standard.E2.1.Micro"
+resource "aws_instance" "bonchon" {
+  ami                    = data.aws_ami.ubuntu.id
+  subnet_id              = data.aws_subnets.subnets.ids[0]
+  instance_type          = "t3.micro"
+  key_name               = aws_key_pair.bonchon.key_name
+  vpc_security_group_ids = [aws_security_group.bonchon.id]
+  iam_instance_profile   = aws_iam_instance_profile.bonchon.name
 
-  create_vnic_details {
-    assign_public_ip = false
-    display_name     = "eth01"
-    hostname_label   = "bonchon"
-    nsg_ids          = [oci_core_network_security_group.bonchon.id]
-    subnet_id        = oci_core_subnet.free.id
+  user_data = data.cloudinit_config.root_server.rendered
+
+  root_block_device {
+    delete_on_termination = true
+    encrypted             = false
+    volume_size           = 30
+    volume_type           = "gp3"
   }
 
-  metadata = {
-    ssh_authorized_keys = var.ssh_public_key
-    user_data           = data.cloudinit_config.bonchon.rendered
+  tags = {
+    Name = "bonchon"
   }
 
-  source_details {
-    source_type = "image"
-    source_id   = data.oci_core_images.ubuntu_jammy.images.0.id
+  volume_tags = {
+    Name = "bonchon"
   }
 
   lifecycle {
-    ignore_changes = [metadata["user_data"], source_details["source_id"]]
+    ignore_changes = [ami]
   }
 }
 
-resource "oci_core_public_ip" "this" {
-  compartment_id = data.oci_identity_compartment.default.id
-  display_name   = "bonchon-${terraform.workspace}"
-  lifetime       = "RESERVED"
-  private_ip_id  = data.oci_core_private_ips.this.private_ips[0]["id"]
+resource "aws_key_pair" "bonchon" {
+  key_name   = "bonchon-${terraform.workspace}"
+  public_key = file("~/.ssh/id_rsa.pub")
 }
 
-data "oci_core_vnic_attachments" "this" {
-  compartment_id      = data.oci_identity_compartment.default.id
-  availability_domain = local.availability_domain
-  instance_id         = oci_core_instance.bonchon.id
+resource "aws_eip" "bonchon" {
+  domain = "vpc"
 }
 
-data "oci_core_vnic" "this" {
-  vnic_id = data.oci_core_vnic_attachments.this.vnic_attachments[0]["vnic_id"]
+resource "aws_eip_association" "bonchon" {
+  instance_id   = aws_instance.bonchon.id
+  allocation_id = aws_eip.bonchon.id
 }
 
-data "oci_core_private_ips" "this" {
-  vnic_id = data.oci_core_vnic.this.id
-}
+resource "aws_security_group" "bonchon" {
+  vpc_id = data.aws_vpc.default.id
+  name   = "bonchon-${terraform.workspace}"
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "TCP"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 
-data "oci_identity_compartment" "default" {
-  id = var.tenancy_ocid
-}
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "TCP"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 
-data "oci_identity_availability_domains" "this" {
-  compartment_id = data.oci_identity_compartment.default.id
-}
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "TCP"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 
-resource "oci_core_vcn" "free" {
-  dns_label      = "free"
-  cidr_block     = var.vpc_cidr_block
-  compartment_id = data.oci_identity_compartment.default.id
-  display_name   = "free-${terraform.workspace}"
-}
-
-resource "oci_core_internet_gateway" "this" {
-  compartment_id = data.oci_identity_compartment.default.id
-  vcn_id         = oci_core_vcn.free.id
-  display_name   = "free-${terraform.workspace}"
-  enabled        = "true"
-}
-
-resource "oci_core_default_route_table" "this" {
-  manage_default_resource_id = oci_core_vcn.free.default_route_table_id
-
-  route_rules {
-    destination       = "0.0.0.0/0"
-    network_entity_id = oci_core_internet_gateway.this.id
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 }
 
-resource "oci_core_network_security_group" "bonchon" {
-  compartment_id = data.oci_identity_compartment.default.id
-  vcn_id         = oci_core_vcn.free.id
-  display_name   = "dijon-nsg"
-  freeform_tags  = { "Service" = "dijon" }
+data "aws_vpc" "default" {
+  default = true
 }
 
-resource "oci_core_network_security_group_security_rule" "bonchon_egress_rule" {
-  network_security_group_id = oci_core_network_security_group.bonchon.id
-  direction                 = "EGRESS"
-  protocol                  = "all"
-  description               = "Egress All"
-  destination               = "0.0.0.0/0"
-  destination_type          = "CIDR_BLOCK"
-}
-
-resource "oci_core_network_security_group_security_rule" "bonchon_ingress_ssh_rule" {
-  network_security_group_id = oci_core_network_security_group.bonchon.id
-  direction                 = "INGRESS"
-  protocol                  = "6"
-  description               = "ssh-ingress"
-  source                    = local.myip
-  source_type               = "CIDR_BLOCK"
-
-  tcp_options {
-    destination_port_range {
-      max = 22
-      min = 22
-    }
-  }
-}
-
-resource "oci_core_network_security_group_security_rule" "bonchon_ingress_ssh_rule_jb" {
-  network_security_group_id = oci_core_network_security_group.bonchon.id
-  direction                 = "INGRESS"
-  protocol                  = "6"
-  description               = "ssh-ingress"
-  source                    = "76.182.16.254/32" ## JB
-  source_type               = "CIDR_BLOCK"
-
-  tcp_options {
-    destination_port_range {
-      max = 22
-      min = 22
-    }
-  }
-}
-
-resource "oci_core_network_security_group_security_rule" "bonchon_ingress_443_rule" {
-  network_security_group_id = oci_core_network_security_group.bonchon.id
-  direction                 = "INGRESS"
-  protocol                  = "6"
-  description               = "443-ingress"
-  source                    = "0.0.0.0/0"
-  source_type               = "CIDR_BLOCK"
-
-  tcp_options {
-    destination_port_range {
-      max = 443
-      min = 443
-    }
-  }
-}
-
-resource "oci_core_network_security_group_security_rule" "bonchon_ingress_80_rule" {
-  network_security_group_id = oci_core_network_security_group.bonchon.id
-  direction                 = "INGRESS"
-  protocol                  = "6"
-  description               = "80-ingress"
-  source                    = "0.0.0.0/0"
-  source_type               = "CIDR_BLOCK"
-
-  tcp_options {
-    destination_port_range {
-      max = 80
-      min = 80
-    }
-  }
-}
-
-resource "oci_core_security_list" "this" {
-  compartment_id = data.oci_identity_compartment.default.id
-  vcn_id         = oci_core_vcn.free.id
-  display_name   = "free-${terraform.workspace}"
-
-}
-
-resource "oci_core_subnet" "free" {
-  availability_domain        = local.availability_domain
-  cidr_block                 = cidrsubnet(var.vpc_cidr_block, 8, 0)
-  display_name               = "free-${terraform.workspace}"
-  prohibit_public_ip_on_vnic = false
-  dns_label                  = "free"
-  compartment_id             = data.oci_identity_compartment.default.id
-  vcn_id                     = oci_core_vcn.free.id
-  route_table_id             = oci_core_default_route_table.this.id
-  security_list_ids          = [oci_core_security_list.this.id]
-  dhcp_options_id            = oci_core_vcn.free.default_dhcp_options_id
-}
-
-data "oci_core_images" "ubuntu_jammy" {
-  compartment_id   = data.oci_identity_compartment.default.id
-  operating_system = "Canonical Ubuntu"
+data "aws_subnets" "subnets" {
   filter {
-    name   = "display_name"
-    values = ["^Canonical-Ubuntu-22.04-([\\.0-9-]+)$"]
-    regex  = true
+    name   = "vpc-id"
+    values = [data.aws_vpc.default.id]
   }
 }
 
-data "oci_core_images" "ubuntu_jammy_arm" {
-  compartment_id   = data.oci_identity_compartment.default.id
-  operating_system = "Canonical Ubuntu"
+data "aws_ami" "ubuntu" {
+  owners = ["099720109477"]
+
+  most_recent = true
+
   filter {
-    name   = "display_name"
-    values = ["^Canonical-Ubuntu-22.04-aarch64-([\\.0-9-]+)$"]
-    regex  = true
+    name   = "name"
+    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
   }
 }
 
-data "cloudinit_config" "bonchon" {
+locals {
+  apache_conf = base64encode(templatefile("${path.root}/templates/apache.conf.tpl", { domain = "locator.bonchon.app" }))
+}
+
+data "cloudinit_config" "root_server" {
   gzip          = true
   base64_encode = true
 
@@ -207,27 +108,33 @@ data "cloudinit_config" "bonchon" {
     content_type = "text/cloud-config"
     content      = <<EOF
 #cloud-config
-
 package_update: true
 package_upgrade: true
+write_files:
+  - encoding: b64
+    content: "${local.apache_conf}"
+    path: /etc/apache2/sites-available/locator.bonchon.app.conf
+    permissions: '0644'
 packages:
+  - apt-transport-https
+  - ca-certificates
   - apache2
-  - mysql-server
-  - mysql-client
   - php
-  - php-mysql
   - php-curl
-  - php-gd
-  - php-zip
+  - php-dom
   - php-mbstring
+  - php-mysql
+  - php-gd
   - php-xml
+  - php-zip
+  - mysql-client
+  - mysql-server
   - libapache2-mod-php
-  - software-properties-common
   - unzip
-  - htop
-  - python3-pip
   - certbot
   - python3-certbot-apache
+  - python3-pip
+  - jq
 EOF
   }
 
@@ -235,9 +142,28 @@ EOF
     content_type = "text/x-shellscript"
     content      = <<BOF
 #!/bin/bash
-ufw disable
-iptables -I INPUT -p tcp -m tcp --dport 80 -j ACCEPT
-iptables -I INPUT -p tcp -m tcp --dport 443 -j ACCEPT
+# configure apache
+mkdir /var/www/locator.bonchon.app
+chown -R $USER:$USER /var/www/locator.bonchon.app
+chmod -R 755 /var/www/locator.bonchon.app
+sed -i 's/^\tOptions Indexes FollowSymLinks/\tOptions FollowSymLinks/' /etc/apache2/apache2.conf
+a2ensite locator.bonchon.app.conf
+a2dissite 000-default.conf
+a2enmod rewrite
+systemctl restart apache2
+# configure mysql
+systemctl start mysql.service
+# secure
+mysql --execute="ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'password';"
+mysql_secure_installation --password=password --use-default
+mysql --user=root --password=password --execute="ALTER USER 'root'@'localhost' IDENTIFIED WITH auth_socket;"
+mysql --execute="UNINSTALL COMPONENT 'file://component_validate_password';"
+# bonchon db
+mysql --execute="CREATE DATABASE bonchon;"
+mysql --execute="CREATE USER 'locator'@'localhost' IDENTIFIED WITH mysql_native_password BY 'locator';"
+mysql --execute="GRANT ALL PRIVILEGES ON bonchon.* TO 'locator'@'localhost';"
+# flush
+mysql --execute="FLUSH PRIVILEGES;"
 
 # Do the yap and BMLT Things
 wget https://github.com/bmlt-enabled/bmlt-root-server/releases/download/2.16.4/bmlt-root-server.zip
@@ -246,32 +172,44 @@ unzip bmlt-root-server.zip
 unzip yap-4.1.0-beta1.zip
 rm -f bmlt-root-server.zip
 rm -f yap-4.1.0-beta1.zip
-mv main_server /var/www/html/main_server
-mv  yap-4.1.0-beta1 /var/www/html/yap
-#rm -f /var/www/html/index.html
-chown -R www-data: /var/www/html
-# start service and makes sure they stay that way on re-boot
-service apache2 start
-service mysql start
+mv main_server /var/www/locator.bonchon.app/main_server
+mv  yap-4.1.0-beta1 /var/www/locator.bonchon.app/yap
+#rm -f /var/www/locator.bonchon.app/index.html
+chown -R www-data: /var/www/locator.bonchon.app
+
 sudo systemctl is-enabled apache2.service
 sudo systemctl is-enabled mysql.service
-# configure rewrite
-#sed -i '/^\s*DocumentRoot \/var\/www\/html.*/a <Directory "\/var\/www\/html">\nAllowOverride All\n<\/Directory>' /etc/apache2/sites-available/000-default.conf
-a2enmod rewrite expires
-service apache2 restart
+
+
+# Need to run after boot
+# sudo certbot --apache
 BOF
   }
 }
 
-data "http" "ip" {
-  url = "https://ifconfig.me/all.json"
+data "aws_iam_policy_document" "bonchon_ec2_assume_role_policy" {
+  statement {
+    actions = ["sts:AssumeRole"]
+    effect  = "Allow"
 
-  request_headers = {
-    Accept = "application/json"
+    principals {
+      type        = "Service"
+      identifiers = ["ec2.amazonaws.com"]
+    }
   }
 }
 
-locals {
-  myip                = "${jsondecode(data.http.ip.response_body).ip_addr}/32"
-  availability_domain = [for i in data.oci_identity_availability_domains.this.availability_domains : i if length(regexall("US-ASHBURN-AD-3", i.name)) > 0][0].name
+resource "aws_iam_role" "bonchon" {
+  name               = "bonchon-ec2-${terraform.workspace}"
+  assume_role_policy = data.aws_iam_policy_document.bonchon_ec2_assume_role_policy.json
+}
+
+resource "aws_iam_role_policy_attachment" "bonchon_ssm" {
+  role       = aws_iam_role.bonchon.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+resource "aws_iam_instance_profile" "bonchon" {
+  name = "bonchon-${terraform.workspace}"
+  role = aws_iam_role.bonchon.name
 }
