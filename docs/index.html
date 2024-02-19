@@ -19,7 +19,7 @@
 </body>
 <script src="https://cdn.jsdelivr.net/npm/@bmlt-enabled/croutonjs/crouton.min.js"></script>
 <script type="text/javascript">
-    var crouton = new Crouton({
+    let crouton = new Crouton({
         "root_server": "https://locator.bonchon.app/main_server",
         "map_search": { latitude: 35.542053, longitude: -78.0652501, width: -50, zoom: 8, auto: true },
         "google_api_key": "AIzaSyA0pVLZgOWbW4WkOw-Q4oDQilTrs9fs1xU",
@@ -38,6 +38,16 @@
         ],
         "view_by": "city",
         meeting_data_template: "{{#isTemporarilyClosed this}}<div class='temporarilyClosed'><span class='glyphicon glyphicon-flag'></span> {{temporarilyClosed this}}</div>{{/isTemporarilyClosed}}<div class='meeting-name'>{{this.meeting_name}}</div><div class='location-text'>{{this.location_text}}</div><div class='meeting-address'>{{this.formatted_address}}</div><div class='location-information'><strong>Location Info:</strong> {{webLinkify this.formatted_location_info}}</div>{{#if this.comments}}<div class='meeting-additional-info'>{{this.comments}}</div>{{/if}}",
+    });
+    document.addEventListener('DOMContentLoaded', function() {
+        let el = document.querySelector('#map-search-button .menu-button-label');
+        if (el) {
+            el.textContent = 'Search for locations';
+        }
+        let le = document.querySelector('.modal-title');
+        if (le) {
+            le.textContent = 'Search for locations';
+        }
     });
 </script>
 </html>
